@@ -55,14 +55,6 @@ struct fiops_data {
 	unsigned int async_scale;
 };
 
-static inline int task_ioprio(struct io_context *ioc)
-{
-	if (ioprio_valid(ioc->ioprio))
-		return IOPRIO_PRIO_DATA(ioc->ioprio);
-
-	return IOPRIO_NORM;
-}
-
 struct fiops_ioc {
 	struct io_cq icq;
 
@@ -475,11 +467,11 @@ static void fiops_init_prio_data(struct fiops_ioc *cic)
 		cic->wl_type = fiops_wl_type(task_nice_ioclass(tsk));
 		break;
 	case IOPRIO_CLASS_RT:
-		cic->ioprio = task_ioprio(ioc);
+		cic->ioprio = IOPRIO_PRIO_DATA(ioc->ioprio);
 		cic->wl_type = fiops_wl_type(IOPRIO_CLASS_RT);
 		break;
 	case IOPRIO_CLASS_BE:
-		cic->ioprio = task_ioprio(ioc);
+		cic->ioprio = IOPRIO_PRIO_DATA(ioc->ioprio);
 		cic->wl_type = fiops_wl_type(IOPRIO_CLASS_BE);
 		break;
 	case IOPRIO_CLASS_IDLE:
@@ -509,7 +501,7 @@ static void fiops_insert_request(struct request_queue *q, struct request *rq)
 static inline void fiops_schedule_dispatch(struct fiops_data *fiopsd)
 {
 	if (fiopsd->busy_queues)
-		kblockd_schedule_work(fiopsd->queue, &fiopsd->unplug_work);
+		kblockd_schedule_work(&fiopsd->unplug_work);
 }
 
 static void fiops_completed_request(struct request_queue *q, struct request *rq)
@@ -536,9 +528,7 @@ fiops_find_rq_fmerge(struct fiops_data *fiopsd, struct bio *bio)
 	cic = fiops_cic_lookup(fiopsd, tsk->io_context);
 
 	if (cic) {
-		sector_t sector = bio->bi_sector + bio_sectors(bio);
-
-		return elv_rb_find(&cic->sort_list, sector);
+		return elv_rb_find(&cic->sort_list, bio_end_sector(bio));
 	}
 
 	return NULL;
@@ -629,16 +619,15 @@ static int fiops_init_queue(struct request_queue *q, struct elevator_type *e)
 	struct elevator_queue *eq;
 
 	eq = elevator_alloc(q, e);
-	if (eq == NULL)
+	if (!eq)
 		return -ENOMEM;
 
 	fiopsd = kzalloc_node(sizeof(*fiopsd), GFP_KERNEL, q->node);
-	if (fiopsd == NULL) {
+	if (!fiopsd) {
 		kobject_put(&eq->kobj);
 		return -ENOMEM;
 	}
 	eq->elevator_data = fiopsd;
-
 
 	fiopsd->queue = q;
 	spin_lock_irq(q->queue_lock);
@@ -771,3 +760,4 @@ module_exit(fiops_exit);
 MODULE_AUTHOR("Jens Axboe, Shaohua Li <shli@kernel.org>");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("IOPS based IO scheduler");
+
