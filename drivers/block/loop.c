@@ -1396,7 +1396,6 @@ static void __lo_release(struct loop_device *lo)
 		loop_flush(lo);
 	}
 
-out:
 	mutex_unlock(&lo->lo_ctl_mutex);
 }
 
