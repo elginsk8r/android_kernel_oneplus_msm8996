@@ -5301,6 +5301,8 @@ static int smbchg_prepare_for_pulsing(struct smbchg_chip *chip)
 		goto handle_removal;
 	}
 
+	set_dpdm_psy(chip, POWER_SUPPLY_DP_DM_DP0P6_DMF);
+
 	/* disable APSD */
 	pr_smb(PR_MISC, "Disabling APSD\n");
 	rc = smbchg_sec_masked_write(chip,
@@ -5323,8 +5325,6 @@ static int smbchg_prepare_for_pulsing(struct smbchg_chip *chip)
 	pr_smb(PR_MISC, "Enable AICL\n");
 	smbchg_sec_masked_write(chip, chip->usb_chgpth_base + USB_AICL_CFG,
 			AICL_EN_BIT, AICL_EN_BIT);
-
-	set_dpdm_psy(chip, POWER_SUPPLY_DP_DM_DP0P6_DMF);
 	/*
 	 * DCP will switch to HVDCP in this time by removing the short
 	 * between DP DM
@@ -6653,7 +6653,8 @@ static irqreturn_t usbin_uv_handler(int irq, void *_chip)
 	 * set usb_psy's dp=f dm=f if this is a new insertion, i.e. it is
 	 * not already src_detected and usbin_uv is seen falling
 	 */
-	if (!(reg & USBIN_UV_BIT) && !(reg & USBIN_SRC_DET_BIT)) {
+	if (!(reg & USBIN_UV_BIT) && !(reg & USBIN_SRC_DET_BIT) &&
++		!chip->hvdcp_3_det_ignore_uv) {
 		pr_smb(PR_MISC, "setting usb dp=f dm=f\n");
 		rc = smbchg_request_dpdm(chip, true);
 		if (rc < 0) {
