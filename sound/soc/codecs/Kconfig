@@ -121,6 +121,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_TLV320AIC32X4 if I2C
 	select SND_SOC_TLV320AIC3X if I2C
 	select SND_SOC_TPA6130A2 if I2C
+	select SND_SOC_TFA9890 if I2C
 	select SND_SOC_TLV320DAC33 if I2C
 	select SND_SOC_TS3A227E if I2C
 	select SND_SOC_TWL4030 if TWL4030_CORE
@@ -982,6 +983,10 @@ config SND_SOC_NAU8825
 
 config SND_SOC_TPA6130A2
 	tristate "Texas Instruments TPA6130A2 headphone amplifier"
+	depends on I2C
+
+config SND_SOC_TFA9890
+	tristate "NXP TFA9890 amplifier"
 	depends on I2C
 
 config SND_SOC_MSM_STUB
