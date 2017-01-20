@@ -44,6 +44,8 @@
 #include <linux/extcon.h>
 #include <linux/pmic-voter.h>
 
+#include <linux/type-c_notifier.h>
+
 /* Mask/Bit helpers */
 #define _SMB_MASK(BITS, POS) \
 	((unsigned char)(((1 << (BITS)) - 1) << (POS)))
@@ -275,6 +277,7 @@ struct smbchg_chip {
 	bool				skip_usb_notification;
 	u32				vchg_adc_channel;
 	struct qpnp_vadc_chip		*vchg_vadc_dev;
+	struct notifier_block		typec_notif;
 
 	/* voters */
 	struct votable			*fcc_votable;
@@ -1391,6 +1394,7 @@ static int smbchg_charging_en(struct smbchg_chip *chip, bool en)
 #define CURRENT_500_MA		500
 #define CURRENT_900_MA		900
 #define CURRENT_1500_MA		1500
+#define CURRENT_4000_MA		4000
 #define SUSPEND_CURRENT_MA	2
 #define ICL_OVERRIDE_BIT	BIT(2)
 static int smbchg_usb_suspend(struct smbchg_chip *chip, bool suspend)
@@ -1471,6 +1475,27 @@ static int smbchg_set_aicl_rerun_period_s(struct smbchg_chip *chip,
 	return smbchg_sec_masked_write(chip,
 			chip->dc_chgpth_base + AICL_WL_SEL_CFG,
 			mask, reg);
+}
+
+enum type_c_host_cur {
+	TYPE_C_HOST_CUR_NO = 0, /* no current */
+	TYPE_C_HOST_CUR_900_500,  /* default USB */
+	TYPE_C_HOST_CUR_1500,  /* 1.5A */
+	TYPE_C_HOST_CUR_3000,  /* 3A */
+};
+
+static int typec_notifier_callback(struct notifier_block *self,
+		unsigned long event, void *data)
+{
+	struct smbchg_chip *chip =
+	container_of(self, struct smbchg_chip, typec_notif);
+
+	if (event == TYPE_C_HOST_CUR_1500)
+		chip->typec_current_ma = CURRENT_1500_MA;
+	else
+		chip->typec_current_ma = CURRENT_4000_MA;
+
+	return 0;
 }
 
 static struct power_supply *get_parallel_psy(struct smbchg_chip *chip)
@@ -8272,6 +8297,11 @@ static int smbchg_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to request irqs rc = %d\n", rc);
 		goto unregister_led_class;
 	}
+
+	chip->typec_notif.notifier_call = typec_notifier_callback;
+ 	rc = bc_register_client(&chip->typec_notif);
+	if (rc)
+		pr_err("Unable to register bc_notifier: %d\n", rc);
 
 	rerun_hvdcp_det_if_necessary(chip);
 
