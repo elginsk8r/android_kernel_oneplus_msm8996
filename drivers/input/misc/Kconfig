@@ -844,4 +844,9 @@ config INPUT_STMVL53L0
 	 To compile this driver as a module, choose M here: the
 	 module will be called stmvl53l0.
 
+config FINGERPRINT_FPC1020
+	tristate "FPC1020 Fingerprint sensor support"
+	depends on SPI_MASTER
+	default n
+
 endif
