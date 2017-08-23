@@ -4595,7 +4595,8 @@ static int smbchg_change_usb_supply_type(struct smbchg_chip *chip,
 	 * detecting this power_supply status change.
 	 */
 	if (chip->usb_supply_type == POWER_SUPPLY_TYPE_USB_HVDCP_3
-			|| chip->usb_supply_type == POWER_SUPPLY_TYPE_USB_HVDCP)
+			|| chip->usb_supply_type == POWER_SUPPLY_TYPE_USB_HVDCP
+			|| chip->usb_supply_type == POWER_SUPPLY_TYPE_DASH)
 		chip->usb_psy_d.type = POWER_SUPPLY_TYPE_USB_DCP;
 	else if (chip->usb_supply_type == POWER_SUPPLY_TYPE_UNKNOWN)
 		chip->usb_psy_d.type = POWER_SUPPLY_TYPE_USB;
@@ -5791,6 +5792,19 @@ static int smbchg_dp_dm(struct smbchg_chip *chip, int val)
 	return rc;
 }
 
+static int smbchg_get_prop_batt_charge_counter(struct smbchg_chip *chip)
+{
+	int rc, val;
+
+	rc = get_property_from_fg(chip, POWER_SUPPLY_PROP_CHARGE_COUNTER, &val);
+	if (rc < 0) {
+		pr_smb(PR_STATUS, "Couldn't get charge count rc = %d\n", rc);
+		return rc;
+	}
+
+	return val;
+}
+
 static void update_typec_capability_status(struct smbchg_chip *chip,
 					const union power_supply_propval *val)
 {
@@ -5955,6 +5969,7 @@ smbchg_usb_is_writeable(struct power_supply *psy,
 static char *smbchg_usb_supplicants[] = {
 	"battery",
 	"bms",
+	"bcl",
 };
 
 static enum power_supply_property smbchg_usb_properties[] = {
@@ -6019,6 +6034,7 @@ static enum power_supply_property smbchg_battery_properties[] = {
 	POWER_SUPPLY_PROP_FLASH_ACTIVE,
 	POWER_SUPPLY_PROP_FLASH_TRIGGER,
 	POWER_SUPPLY_PROP_DP_DM,
+	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMITED,
 	POWER_SUPPLY_PROP_RERUN_AICL,
 	POWER_SUPPLY_PROP_RESTRICTED_CHARGING,
@@ -6227,6 +6243,9 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_DP_DM:
 		val->intval = chip->pulse_cnt;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
+		val->intval = smbchg_get_prop_batt_charge_counter(chip);
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMITED:
 		val->intval = smbchg_is_input_current_limited(chip);
