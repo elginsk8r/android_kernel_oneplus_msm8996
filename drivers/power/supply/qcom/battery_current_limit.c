@@ -291,9 +291,22 @@ static void soc_mitigate(struct work_struct *work)
 static int get_and_evaluate_battery_soc(void)
 {
 	static struct power_supply *batt_psy;
+	static struct power_supply *usb_psy;
+	int usb_state;
+	bool is_usb_present;
 	union power_supply_propval ret = {0,};
 	int battery_percentage;
 	enum bcl_threshold_state prev_soc_state;
+
+	if (!usb_psy)
+		usb_psy = power_supply_get_by_name("usb");
+	if (usb_psy) {
+		usb_state = power_supply_get_property(usb_psy,
+				POWER_SUPPLY_PROP_PRESENT, &ret);
+		if (usb_state == 0)
+			is_usb_present = ret.intval;
+	}
+	pr_debug("is_usb_present:%d", is_usb_present);
 
 	if (!batt_psy)
 		batt_psy = power_supply_get_by_name("battery");
@@ -307,6 +320,8 @@ static int get_and_evaluate_battery_soc(void)
 		prev_soc_state = bcl_soc_state;
 		bcl_soc_state = (battery_soc_val <= soc_low_threshold) ?
 					BCL_LOW_THRESHOLD : BCL_HIGH_THRESHOLD;
+		if (is_usb_present)
+			bcl_soc_state = BCL_HIGH_THRESHOLD;
 		if (bcl_soc_state == prev_soc_state)
 			return NOTIFY_OK;
 		trace_bcl_sw_mitigation_event(
