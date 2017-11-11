@@ -126,6 +126,9 @@ dtb-$(CONFIG_ARCH_MSM8996_DISABLED) += msm8996-v2-pmi8994-cdp.dtb \
 	msm8996-auto-mizar.dtb
 endif
 
+dtb-$(CONFIG_ARCH_MSM8996) += msm8996-v3-pmi8996-mtp-oneplus.dtb \
+	msm8996pro-pmi8996-mtp-oneplus.dtb
+
 dtb-$(CONFIG_MSM_GVM_QUIN) += vplatform-lfv-msm8996-telematics.dtb \
 	vplatform-lfv-msm8996-ivi.dtb \
 	vplatform-lfv-msm8996-ivi_8GB.dtb \
