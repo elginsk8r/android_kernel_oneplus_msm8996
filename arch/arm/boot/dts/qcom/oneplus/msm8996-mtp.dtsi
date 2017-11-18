@@ -862,6 +862,14 @@
 	qcom,qbt1000 {
 		status = "disabled";
 	};
+
+	ramoops {
+		compatible = "ramoops";
+		memory-region = <&ramoops_mem>;
+		record-size = <0x0 0x20000>;
+		console-size = <0x0 0x100000>;
+		pmsg-size = <0x0 0x80000>;
+	};
 };
 
 &pm8994_l13 {
@@ -1100,6 +1108,14 @@
 &i2c_12 {
 	synaptics_dsx@20 {
 		status = "disabled";
+	};
+
+	reserved-memory {
+		ramoops_mem: ramoops_region@ac000000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0xAC000000 0 0x200000>;
+		};
 	};
 };
 
