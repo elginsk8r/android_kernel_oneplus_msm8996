@@ -4545,6 +4545,7 @@ static int smbchg_change_usb_supply_type(struct smbchg_chip *chip,
 						enum power_supply_type type)
 {
 	int rc, current_limit_ma;
+	union power_supply_propval propval;
 
 	/*
 	 * if the type is not unknown, set the type before changing ICL vote
@@ -4603,8 +4604,11 @@ static int smbchg_change_usb_supply_type(struct smbchg_chip *chip,
 	else
 		chip->usb_psy_d.type = chip->usb_supply_type;
 
-	if (!chip->skip_usb_notification)
-		power_supply_changed(chip->usb_psy);
+	if (!chip->skip_usb_notification) {
+		propval.intval = type;
+		power_supply_set_property(chip->usb_psy,
+				POWER_SUPPLY_PROP_REAL_TYPE, &propval);
+	}
 
 	/* set the correct buck switching frequency */
 	rc = smbchg_set_optimal_charging_mode(chip, type);
