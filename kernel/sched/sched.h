@@ -8,6 +8,7 @@
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/stop_machine.h>
+#include <linux/irq_work.h>
 #include <linux/tick.h>
 #include <linux/slab.h>
 
@@ -115,11 +116,6 @@ static inline int task_has_rt_policy(struct task_struct *p)
 static inline int task_has_dl_policy(struct task_struct *p)
 {
 	return dl_policy(p->policy);
-}
-
-static inline bool dl_time_before(u64 a, u64 b)
-{
-	return (s64)(a - b) < 0;
 }
 
 /*
@@ -500,6 +496,11 @@ static inline int rt_bandwidth_enabled(void)
 	return sysctl_sched_rt_runtime >= 0;
 }
 
+/* RT IPI pull logic requires IRQ_WORK */
+#if defined(CONFIG_IRQ_WORK) && defined(CONFIG_SMP)
+# define HAVE_RT_PUSH_IPI
+#endif
+
 /* Real-Time classes' related field in a runqueue: */
 struct rt_rq {
 	struct rt_prio_array active;
@@ -517,7 +518,7 @@ struct rt_rq {
 	unsigned long rt_nr_total;
 	int overloaded;
 	struct plist_head pushable_tasks;
-#endif
+#endif /* CONFIG_SMP */
 	int rt_queued;
 
 	int rt_throttled;
@@ -598,6 +599,19 @@ struct root_domain {
 	struct dl_bw dl_bw;
 	struct cpudl cpudl;
 
+#ifdef HAVE_RT_PUSH_IPI
+	/*
+	 * For IPI pull requests, loop across the rto_mask.
+	 */
+	struct irq_work rto_push_work;
+	raw_spinlock_t rto_lock;
+	/* These atomics are updated outside of a lock */
+	atomic_t rto_loop_next;
+	atomic_t rto_loop_start;
+	/* These are only updated and read withn rto_lock */
+	int rto_loop;
+	int rto_cpu;
+#endif
 	/*
 	 * The "RT overload" flag: it gets set if a CPU has more than
 	 * one runnable RT task.
@@ -608,6 +622,9 @@ struct root_domain {
 
 extern struct root_domain def_root_domain;
 
+#ifdef HAVE_RT_PUSH_IPI
+extern void rto_push_irq_work_func(struct irq_work *work);
+#endif
 #endif /* CONFIG_SMP */
 
 /*
@@ -681,9 +698,10 @@ struct rq {
 
 	unsigned long cpu_capacity;
 
+	struct callback_head *balance_callback;
+
 	unsigned char idle_balance;
 	/* For active balancing */
-	int post_schedule;
 	int active_balance;
 	int push_cpu;
 	struct task_struct *push_task;
@@ -817,6 +835,21 @@ extern int migrate_swap(struct task_struct *, struct task_struct *);
 #endif /* CONFIG_NUMA_BALANCING */
 
 #ifdef CONFIG_SMP
+
+static inline void
+queue_balance_callback(struct rq *rq,
+		       struct callback_head *head,
+		       void (*func)(struct rq *rq))
+{
+	lockdep_assert_held(&rq->lock);
+
+	if (unlikely(head->next))
+		return;
+
+	head->func = (void (*)(struct callback_head *))func;
+	head->next = rq->balance_callback;
+	rq->balance_callback = head;
+}
 
 extern void sched_ttwu_pending(void);
 
@@ -1702,9 +1735,9 @@ static const u32 prio_to_wmult[40] = {
 #define ENQUEUE_HEAD		0x08
 #define ENQUEUE_REPLENISH	0x10
 #ifdef CONFIG_SMP
-#define ENQUEUE_WAKING		0x20
+#define ENQUEUE_MIGRATED	0x20
 #else
-#define ENQUEUE_WAKING		0x00
+#define ENQUEUE_MIGRATED	0x00
 #endif
 #define ENQUEUE_MIGRATING	0x40
 
@@ -1737,7 +1770,6 @@ struct sched_class {
 	void (*migrate_task_rq)(struct task_struct *p, int next_cpu);
 
 	void (*post_schedule) (struct rq *this_rq);
-	void (*task_waking) (struct task_struct *task);
 	void (*task_woken) (struct rq *this_rq, struct task_struct *task);
 
 	void (*set_cpus_allowed)(struct task_struct *p,
@@ -2207,4 +2239,10 @@ static inline u64 irq_time_read(int cpu)
 }
 #endif /* CONFIG_64BIT */
 #endif /* CONFIG_IRQ_TIME_ACCOUNTING */
+
+/*
+ * task_may_not_preempt - check whether a task may not be preemptible soon
+ */
+extern bool task_may_not_preempt(struct task_struct *task, int cpu);
+
 #endif /* CONFIG_SCHED_QHMP */
