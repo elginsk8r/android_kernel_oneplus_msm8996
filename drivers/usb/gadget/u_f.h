@@ -58,11 +58,10 @@ struct usb_request;
  * In case @ep direction is OUT, the @len will be aligned to ep's
  * wMaxPacketSize. In order to avoid memory leaks or drops, *always* use
  * usb_requests's length (req->length) to refer to the allocated buffer size.
- * Requests allocated via alloc_ep_req() *must* be freed by free_ep_req().
+ * Requests allocated via alloc_ep_req() must be freed by free_ep_req().
  */
 struct usb_request *alloc_ep_req(struct usb_ep *ep, size_t len, int default_len);
 
-/* Frees a usb_request previously allocated by alloc_ep_req() */
 static inline void free_ep_req(struct usb_ep *ep, struct usb_request *req)
 {
 	kfree(req->buf);
