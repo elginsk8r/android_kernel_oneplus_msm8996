@@ -1389,13 +1389,6 @@ static void fg_enable_irqs(struct fg_chip *chip, bool enable)
 		return;
 
 	if (enable) {
-		enable_irq(chip->soc_irq[DELTA_SOC].irq);
-		enable_irq_wake(chip->soc_irq[DELTA_SOC].irq);
-		if (!chip->full_soc_irq_enabled) {
-			enable_irq(chip->soc_irq[FULL_SOC].irq);
-			enable_irq_wake(chip->soc_irq[FULL_SOC].irq);
-			chip->full_soc_irq_enabled = true;
-		}
 		enable_irq(chip->batt_irq[BATT_MISSING].irq);
 		if (!chip->vbat_low_irq_enabled) {
 			enable_irq(chip->batt_irq[VBATT_LOW].irq);
@@ -1408,13 +1401,6 @@ static void fg_enable_irqs(struct fg_chip *chip, bool enable)
 		}
 		chip->irqs_enabled = true;
 	} else {
-		disable_irq_wake(chip->soc_irq[DELTA_SOC].irq);
-		disable_irq_nosync(chip->soc_irq[DELTA_SOC].irq);
-		if (chip->full_soc_irq_enabled) {
-			disable_irq_wake(chip->soc_irq[FULL_SOC].irq);
-			disable_irq_nosync(chip->soc_irq[FULL_SOC].irq);
-			chip->full_soc_irq_enabled = false;
-		}
 		disable_irq(chip->batt_irq[BATT_MISSING].irq);
 		if (chip->vbat_low_irq_enabled) {
 			disable_irq_wake(chip->batt_irq[VBATT_LOW].irq);
@@ -3277,9 +3263,7 @@ static int estimate_battery_age(struct fg_chip *chip, int *actual_capacity)
 	}
 
 	battery_soc = get_battery_soc_raw(chip) * 100 / FULL_PERCENT_3B;
-	if (rc) {
-		goto error_done;
-	} else if (battery_soc < 25 || battery_soc > 75) {
+	if (battery_soc < 25 || battery_soc > 75) {
 		if (fg_debug_mask & FG_AGING)
 			pr_info("Battery SoC (%d) out of range, aborting\n",
 					(int)battery_soc);
@@ -4101,11 +4085,6 @@ static void status_change_work(struct work_struct *work)
 			chip->vbat_low_irq_enabled = true;
 		}
 
-		if (!chip->full_soc_irq_enabled) {
-			enable_irq(chip->soc_irq[FULL_SOC].irq);
-			enable_irq_wake(chip->soc_irq[FULL_SOC].irq);
-			chip->full_soc_irq_enabled = true;
-		}
 
 		if (!!(chip->wa_flag & PULSE_REQUEST_WA) && capacity == 100)
 			fg_configure_soc(chip);
@@ -4645,7 +4624,8 @@ static int fg_power_get_property(struct power_supply *psy,
 			val->strval = chip->batt_type;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
-		if (external_fg && external_fg->get_battery_soc)
+		if (chip->use_external_fg && external_fg
+				&& external_fg->get_battery_soc)
 			val->intval = external_fg->get_battery_soc();
 		else if(get_extern_fg_regist_done() == false)
 			val->intval = get_prop_pre_shutdown_soc();
@@ -4659,13 +4639,15 @@ static int fg_power_get_property(struct power_supply *psy,
 		val->intval = get_sram_prop_now(chip, FG_DATA_VINT_ERR);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		if (external_fg && external_fg->get_average_current)
+		if (chip->use_external_fg && external_fg
+				&& external_fg->get_average_current)
 			val->intval = external_fg->get_average_current();
 		else
 			val->intval = get_sram_prop_now(chip, FG_DATA_CURRENT);
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		if (external_fg && external_fg->get_battery_mvolts)
+		if (chip->use_external_fg && external_fg
+				&& external_fg->get_battery_mvolts)
 			val->intval = external_fg->get_battery_mvolts();
 		else
 			val->intval = get_sram_prop_now(chip, FG_DATA_VOLTAGE);
@@ -4677,7 +4659,8 @@ static int fg_power_get_property(struct power_supply *psy,
 		val->intval = chip->batt_max_voltage_uv;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
-		if (external_fg && external_fg->get_average_current)
+		if (chip->use_external_fg && external_fg
+				&& external_fg->get_average_current)
 			val->intval = external_fg->get_battery_temperature();
 		else if (get_extern_fg_regist_done() == false)
 			val->intval = DEFALUT_BATT_TEMP;
@@ -4713,8 +4696,11 @@ static int fg_power_get_property(struct power_supply *psy,
 		val->intval = chip->battery_4p4v_present;
 		break;
 	case POWER_SUPPLY_PROP_BATTERY_HEALTH:
-		if (external_fg && external_fg->get_batt_health)
+		if (chip->use_external_fg && external_fg
+				&& external_fg->get_batt_health)
 			val->intval = external_fg->get_batt_health();
+		else if (get_extern_fg_regist_done() == false)
+			val->intval = -1;
 		else
 			val->intval = -1;
 		break;
@@ -4871,11 +4857,13 @@ static int fg_power_set_property(struct power_supply *psy,
 		oem_update_cc_cv_setpoint(chip,val->intval);
 		break;
 	case POWER_SUPPLY_PROP_SET_ALLOW_READ_EXTERN_FG_IIC:
-		if (external_fg && external_fg->set_alow_reading)
+		if (chip->use_external_fg && external_fg
+				&& external_fg->set_alow_reading)
 			external_fg->set_alow_reading(val->intval);
 		break;
 	case POWER_SUPPLY_PROP_UPDATE_LCD_IS_OFF:
-		if (external_fg && external_fg->set_lcd_off_status)
+		if (chip->use_external_fg && external_fg
+				&& external_fg->set_lcd_off_status)
 			external_fg->set_lcd_off_status(val->intval);
 		break;
 	case POWER_SUPPLY_PROP_BATTERY_4P4V_PRESENT:
@@ -5454,89 +5442,6 @@ static irqreturn_t fg_mem_avail_irq_handler(int irq, void *_chip)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t fg_soc_irq_handler(int irq, void *_chip)
-{
-	struct fg_chip *chip = _chip;
-	u8 soc_rt_sts;
-	int rc, msoc;
-
-	rc = fg_read(chip, &soc_rt_sts, INT_RT_STS(chip->soc_base), 1);
-	if (rc) {
-		pr_err("spmi read failed: addr=%03X, rc=%d\n",
-				INT_RT_STS(chip->soc_base), rc);
-	}
-
-	if (fg_debug_mask & FG_IRQS)
-		pr_info("triggered 0x%x\n", soc_rt_sts);
-
-	if (chip->dischg_gain.enable) {
-		fg_stay_awake(&chip->dischg_gain_wakeup_source);
-		schedule_work(&chip->dischg_gain_work);
-	}
-
-	if (chip->soc_slope_limiter_en) {
-		fg_stay_awake(&chip->slope_limit_wakeup_source);
-		schedule_work(&chip->slope_limiter_work);
-	}
-
-	/* Backup last soc every delta soc interrupt */
-	chip->use_last_soc = false;
-	if (fg_reset_on_lockup) {
-		if (!chip->ima_error_handling)
-			chip->last_soc = get_monotonic_soc_raw(chip);
-		if (fg_debug_mask & FG_STATUS)
-			pr_info("last_soc: %d\n", chip->last_soc);
-
-		fg_stay_awake(&chip->cc_soc_wakeup_source);
-		schedule_work(&chip->cc_soc_store_work);
-	}
-
-	if (chip->use_vbat_low_empty_soc) {
-		msoc = get_monotonic_soc_raw(chip);
-		if (msoc == 0 || chip->soc_empty) {
-			fg_stay_awake(&chip->empty_check_wakeup_source);
-			schedule_delayed_work(&chip->check_empty_work,
-				msecs_to_jiffies(FG_EMPTY_DEBOUNCE_MS));
-		}
-	}
-
-	schedule_work(&chip->battery_age_work);
-
-	if (chip->power_supply_registered)
-		power_supply_changed(&chip->bms_psy);
-
-	if (chip->rslow_comp.chg_rs_to_rslow > 0 &&
-			chip->rslow_comp.chg_rslow_comp_c1 > 0 &&
-			chip->rslow_comp.chg_rslow_comp_c2 > 0)
-		schedule_work(&chip->rslow_comp_work);
-
-	if (chip->cyc_ctr.en)
-		schedule_work(&chip->cycle_count_work);
-
-	schedule_work(&chip->update_esr_work);
-
-	if (chip->charge_full)
-		schedule_work(&chip->charge_full_work);
-
-	if (chip->wa_flag & IADC_GAIN_COMP_WA
-			&& chip->iadc_comp_data.gain_active) {
-		fg_stay_awake(&chip->gain_comp_wakeup_source);
-		schedule_work(&chip->gain_comp_work);
-	}
-
-	if (chip->wa_flag & USE_CC_SOC_REG
-			&& chip->learning_data.active) {
-		fg_stay_awake(&chip->capacity_learning_wakeup_source);
-		schedule_work(&chip->fg_cap_learning_work);
-	}
-
-	if (chip->esr_pulse_tune_en) {
-		fg_stay_awake(&chip->esr_extract_wakeup_source);
-		schedule_work(&chip->esr_extract_config_work);
-	}
-
-	return IRQ_HANDLED;
-}
 
 static irqreturn_t fg_empty_soc_irq_handler(int irq, void *_chip)
 {
@@ -7300,6 +7205,7 @@ static int fg_of_init(struct fg_chip *chip)
 		rc = 0;
 	}
 
+	chip->use_external_fg = of_property_read_bool(node, "oem,use_external_fg");
 	chip->bad_batt_detection_en = of_property_read_bool(node,
 				"qcom,bad-battery-detection-enable");
 
@@ -7424,22 +7330,10 @@ static int fg_init_irqs(struct fg_chip *chip)
 
 		switch (subtype) {
 		case FG_SOC:
-			chip->soc_irq[FULL_SOC].irq = spmi_get_irq_byname(
-					chip->spmi, spmi_resource, "full-soc");
-			if (chip->soc_irq[FULL_SOC].irq < 0) {
-				pr_err("Unable to get full-soc irq\n");
-				return rc;
-			}
 			chip->soc_irq[EMPTY_SOC].irq = spmi_get_irq_byname(
 					chip->spmi, spmi_resource, "empty-soc");
 			if (chip->soc_irq[EMPTY_SOC].irq < 0) {
 				pr_err("Unable to get empty-soc irq\n");
-				return rc;
-			}
-			chip->soc_irq[DELTA_SOC].irq = spmi_get_irq_byname(
-					chip->spmi, spmi_resource, "delta-soc");
-			if (chip->soc_irq[DELTA_SOC].irq < 0) {
-				pr_err("Unable to get delta-soc irq\n");
 				return rc;
 			}
 			chip->soc_irq[FIRST_EST_DONE].irq = spmi_get_irq_byname(
@@ -7449,17 +7343,6 @@ static int fg_init_irqs(struct fg_chip *chip)
 				return rc;
 			}
 
-			rc = devm_request_irq(chip->dev,
-				chip->soc_irq[FULL_SOC].irq,
-				fg_soc_irq_handler, IRQF_TRIGGER_RISING,
-				"full-soc", chip);
-			if (rc < 0) {
-				pr_err("Can't request %d full-soc: %d\n",
-					chip->soc_irq[FULL_SOC].irq, rc);
-				return rc;
-			}
-			enable_irq_wake(chip->soc_irq[FULL_SOC].irq);
-			chip->full_soc_irq_enabled = true;
 
 			if (!chip->use_vbat_low_empty_soc) {
 				rc = devm_request_irq(chip->dev,
@@ -7477,15 +7360,6 @@ static int fg_init_irqs(struct fg_chip *chip)
 			}
 
 			rc = devm_request_irq(chip->dev,
-				chip->soc_irq[DELTA_SOC].irq,
-				fg_soc_irq_handler, IRQF_TRIGGER_RISING,
-				"delta-soc", chip);
-			if (rc < 0) {
-				pr_err("Can't request %d delta-soc: %d\n",
-					chip->soc_irq[DELTA_SOC].irq, rc);
-				return rc;
-			}
-			rc = devm_request_irq(chip->dev,
 				chip->soc_irq[FIRST_EST_DONE].irq,
 				fg_first_soc_irq_handler, IRQF_TRIGGER_RISING,
 				"first-est-done", chip);
@@ -7495,7 +7369,6 @@ static int fg_init_irqs(struct fg_chip *chip)
 				return rc;
 			}
 
-			enable_irq_wake(chip->soc_irq[DELTA_SOC].irq);
 			if (!chip->use_vbat_low_empty_soc)
 				enable_irq_wake(chip->soc_irq[EMPTY_SOC].irq);
 			break;
@@ -8697,7 +8570,6 @@ out:
 static int fg_memif_init(struct fg_chip *chip)
 {
 	int rc;
-	u8 dig_major;
 
 	rc = fg_read(chip, chip->revision, chip->mem_base + DIG_MINOR, 4);
 	if (rc) {
@@ -8715,7 +8587,7 @@ static int fg_memif_init(struct fg_chip *chip)
 		chip->ima_supported = true;
 		break;
 	default:
-		pr_err("Digital Major rev=%d not supported\n", dig_major);
+		pr_err("Digital Major rev=%d not supported\n", chip->revision[DIG_MAJOR]);
 		return -EINVAL;
 	}
 
@@ -8733,12 +8605,6 @@ static int fg_memif_init(struct fg_chip *chip)
 			return rc;
 		}
 
-		/* check for error condition */
-		rc = fg_check_ima_exception(chip, true);
-		if (rc) {
-			pr_err("Error in clearing IMA exception rc=%d", rc);
-			return rc;
-		}
 	}
 
 	return 0;

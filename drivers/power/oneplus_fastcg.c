@@ -77,7 +77,6 @@ static unsigned char *dashchg_firmware_data;
 static struct clk *snoc_clk, *cnoc_clk;
 static struct i2c_client *mcu_client;
 
-//for mcu_data irq delay issue 2017.10.14@Infi
 extern void msm_cpuidle_set_sleep_disable(bool disable);
 void opchg_set_data_active(struct fastchg_device_info *chip)
 {
@@ -262,14 +261,12 @@ static void reset_mcu_and_requst_irq(struct fastchg_device_info *di)
 	di->irq = gpio_to_irq(di->ap_data);
 
 	/* 0x01:rising edge, 0x02:falling edge */
-	if (!di->irq_enabled) {
-		ret = request_irq(di->irq, irq_rx_handler,
-				IRQF_TRIGGER_RISING, "mcu_data", di);
-		if (ret < 0)
-			pr_err("request ap rx irq failed.\n");
-		else
-			di->irq_enabled = true;
-	}
+	ret = request_irq(di->irq, irq_rx_handler,
+			IRQF_TRIGGER_RISING, "mcu_data", di);
+	if (ret < 0)
+		pr_err("request ap rx irq failed.\n");
+	else
+		di->irq_enabled = true;
 }
 
 
