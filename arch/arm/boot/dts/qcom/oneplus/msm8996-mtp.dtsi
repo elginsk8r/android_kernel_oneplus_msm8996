@@ -780,6 +780,25 @@
 	};
 };
 
+&ts_active {
+	mux {
+		pins = "gpio89", "gpio125","gpio49";
+	};
+
+	config {
+		pins = "gpio89", "gpio125","gpio49";
+	};
+};
+
+&ts_suspend {
+	mux {
+		pins = "gpio89", "gpio125","gpio49";
+	};
+
+	config {
+		pins = "gpio89", "gpio125","gpio49";
+	};
+};
 &pm8994_gpios {
 	gpio@c600 { /* GPIO 7 - NFC DWL REQ */
 		qcom,mode = <1>;
@@ -976,6 +995,48 @@
 		pinctrl-1 = <&nfc_int_suspend &nfc_disable_suspend>;
 		clocks = <&clock_gcc clk_bb_clk2_pin>;
 		clock-names = "ref_clk";
+	};
+};
+
+&tlmm {
+	tk_mux {
+		tk_active: tk_active {
+			mux {
+				pins = "gpio14", "gpio76", "gpio132";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio14", "gpio76", "gpio132";
+				drive-strength = <16>;
+				bias-pull-up;
+			};
+		};
+
+		tk_suspend: tk_suspend {
+			mux {
+				pins = "gpio14", "gpio76", "gpio132";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio14", "gpio76", "gpio132";
+				drive-strength = <16>;
+				bias-pull-up;
+			};
+		};
+	};
+};
+
+&i2c_8_active {
+	config {
+		drive-strength = <16>;
+	};
+};
+
+&i2c_8_sleep {
+	config {
+		drive-strength = <16>;
 	};
 };
 
