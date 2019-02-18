@@ -546,6 +546,23 @@
 		};
 	};
 
+	fpc_fpc1020 {
+		compatible = "fpc,fpc1020";
+		interrupt-parent = <&tlmm>;
+		fpc,reset-gpio    = <&tlmm 86 0>;
+		fpc,irq-gpio    = <&tlmm 95 0>;
+		fpc,gpio_id0    = <&tlmm 25 0>;
+		fpc,gpio_id1    = <&tlmm 143 0>;
+		fpc,gpio_1V8_EN = <&tlmm 14 0x00>;
+		#vcc_spi-supply  = <&pm8994_l13>;
+		#vdd_ana-supply  = <&pm8994_l13>;
+		#vdd_io-supply   = <&pm8994_s4>;
+
+		#pinctrl-names = "pmx_tri_state_key_active", "pmx_tri_state_key_suspend";
+		#pinctrl-0 = <&tri_state_key_active>;
+		#pinctrl-1 = <&tri_state_key_suspend>;
+	};
+
 	gen-vkeys {
 		compatible = "qcom,gen-vkeys";
 		label = "synaptics_dsx";
@@ -715,6 +732,38 @@
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&quat_tdm_din_active>;
 		pinctrl-1 = <&quat_tdm_din_sleep>;
+	};
+};
+
+&pm8994_l13 {
+	regulator-min-microvolt = <2950000>;
+};
+
+&tlmm {
+	tri_state_key_mux {
+		tri_state_key_active: tri_state_key_active {
+			mux {
+				pins = "gpio77";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio77";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		tri_state_key_suspend: tri_state_key_suspend {
+			mux {
+				pins = "gpio77";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio77";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
 	};
 };
 
