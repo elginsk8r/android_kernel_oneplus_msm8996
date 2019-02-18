@@ -546,6 +546,18 @@
 		};
 	};
 
+	tri_state_key {
+		compatible = "oneplus,tri-state-key";
+		interrupt-parent = <&tlmm>;
+		tristate,gpio_key2 = <&pm8994_gpios 4 0>;
+		tristate,gpio_key1 = <&pm8994_gpios 6 0>;
+		tristate,gpio_key3 = <&pm8994_gpios 5 0>;
+
+		#pinctrl-names = "pmx_tri_state_key_active", "pmx_tri_state_key_suspend";
+		#pinctrl-0 = <&tri_state_key_active>;
+		#pinctrl-1 = <&tri_state_key_suspend>;
+	};
+
 	fpc_fpc1020 {
 		compatible = "fpc,fpc1020";
 		interrupt-parent = <&tlmm>;
