@@ -519,30 +519,22 @@
 
 &soc {
 	i2c@75ba000 {
-		synaptics@20 {
-			compatible = "synaptics,dsx";
+		synaptics-rmi-ts@20 {
+			compatible = "synaptics,s3320";
 			reg = <0x20>;
 			interrupt-parent = <&tlmm>;
 			interrupts = <125 0x2008>;
-			vdd-supply = <&pm8994_l14>;
-			avdd-supply = <&pm8994_l22>;
-			synaptics,vdd-voltage = <1800000 1800000>;
-			synaptics,avdd-voltage = <3300000 3300000>;
-			synaptics,vdd-current = <40000>;
-			synaptics,avdd-current = <20000>;
+			vdd_2v8-supply = <&pm8994_l22>;
+			vcc_i2c_1v8-supply = <&pm8994_s4>;
 			pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
 			pinctrl-0 = <&ts_active>;
 			pinctrl-1 = <&ts_suspend>;
-			synaptics,display-coords = <0 0 1599 2559>;
-			synaptics,panel-coords = <0 0 1599 2703>;
+			synaptics,display-coords = <1080 1920>;
 			synaptics,reset-gpio = <&tlmm 89 0x00>;
 			synaptics,irq-gpio = <&tlmm 125 0x2008>;
-			synaptics,disable-gpios;
-			synaptics,fw-name = "PR1702898-s3528t_00350002.img";
-			/* Underlying clocks used by secure touch */
-			clock-names = "iface_clk", "core_clk";
-			clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
-				 <&clock_gcc clk_gcc_blsp2_qup6_i2c_apps_clk>;
+			synaptics,1v8-gpio = <&tlmm 49 0x00>;
+			synaptics,tx-rx-num = <16 28>;
+			oem,support_hw_poweroff;
 		};
 	};
 
@@ -751,6 +743,11 @@
 	regulator-min-microvolt = <2950000>;
 };
 
+&pm8994_l22 {
+	regulator-min-microvolt = <3000000>;
+	qcom,init-voltage = <3000000>;
+};
+
 &tlmm {
 	tri_state_key_mux {
 		tri_state_key_active: tri_state_key_active {
@@ -945,6 +942,20 @@
 };
 
 &i2c_8 { /* BLSP2 QUP2 */
+	synaptics-rmi-ts@20 {
+		compatible = "HWK,synaptics,s1302";
+		reg = <0x20>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <132 0x2008>;
+		synaptics,irq-gpio = <&tlmm 132 0x2008>;
+		synaptics,reset-gpio = <&tlmm 76 0x00>;
+		vdd_2v8-supply = <&pm8994_l13>;
+		vcc_i2c_1v8-supply = <&pm8994_s4>;
+		pinctrl-names = "pmx_tk_active", "pmx_tk_suspend";
+		pinctrl-0 = <&tk_active>;
+		pinctrl-1 = <&tk_suspend>;
+		oem,cover_reject;
+	};
 	nq@28 {
 		compatible = "qcom,nq-nci";
 		reg = <0x28>;
