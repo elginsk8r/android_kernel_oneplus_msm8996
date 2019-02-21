@@ -470,12 +470,36 @@
 
 &i2c_7 {
 	smb1351-charger@1d {
-		compatible = "qcom,smb1351-charger";
-		reg = <0x1d>;
-		qcom,parallel-charger;
-		qcom,float-voltage-mv = <4400>;
-		qcom,recharge-mv = <100>;
+		status = "disabled";
 	};
+	fusb301@21 {
+		compatible = "fusb301";
+		reg = <0x21>;
+		fusb301,ID-gpio = <&pmi8994_gpios 6 0>;
+		fusb301,irq-gpio = <&pmi8994_gpios 5 0>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp2_qup1_i2c_apps_clk>;
+	};
+	tusb320@60 {
+		compatible = "tusb320";
+		reg = <0x60>;
+		tusb320,ID-gpio = <&pmi8994_gpios 6 0>;
+		tusb320,irq-gpio = <&pmi8994_gpios 5 0>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp2_qup1_i2c_apps_clk>;
+	};
+	ptn5150@1d {
+		compatible = "ptn5150";
+		reg = <0x1d>;
+		ptn5150,ID-gpio = <&pmi8994_gpios 6 0>;
+		ptn5150,irq-gpio = <&pmi8994_gpios 5 0>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp2_qup1_i2c_apps_clk>;
+	};
+
 };
 
 &pmi8994_charger {
