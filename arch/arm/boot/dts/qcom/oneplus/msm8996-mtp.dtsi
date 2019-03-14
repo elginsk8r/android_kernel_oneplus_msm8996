@@ -14,6 +14,10 @@
 #include "../msm8996-camera-sensor-mtp.dtsi"
 
 / {
+	aliases {
+		i2c3 = &i2c_3;
+	};
+
 	bluetooth: bt_qca6174 {
 		compatible = "qca,qca6174";
 		qca,bt-reset-gpio = <&pm8994_gpios 19 0>; /* BT_EN */
@@ -611,6 +615,30 @@
 };
 
 &soc {
+	i2c_3: i2c@7577000 { /* BLSP1 QUP3 */
+			compatible = "qcom,i2c-msm-v2";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg-names = "qup_phys_addr";
+			reg = <0x7577000 0x1000>;
+			interrupt-names = "qup_irq";
+			interrupts = <0 97 0>;
+			dmas = <&dma_blsp1 16 32 0x20000020 0x20>,
+			<&dma_blsp1 17 32 0x20000020 0x20>;
+			dma-names = "tx", "rx";
+			qcom,master-id = <86>;
+			qcom,clk-freq-out = <100000>;
+			qcom,clk-freq-in = <19200000>;
+			qcom,fs-clk-div =<104>;
+			qcom,high-time-clk-div=<82>;
+			clock-names = "iface_clk", "core_clk";
+			clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+			<&clock_gcc clk_gcc_blsp1_qup3_i2c_apps_clk>;
+			pinctrl-names = "i2c_active", "i2c_sleep";
+			pinctrl-0 = <&i2c_3_active>;
+			pinctrl-1 = <&i2c_3_sleep>;
+	};
+
 	i2c@75ba000 {
 		synaptics-rmi-ts@20 {
 			compatible = "synaptics,s3320";
@@ -702,6 +730,16 @@
 		};
 	};
 
+	i2c@7577000 {
+		status = "ok";
+		test_tfa9890: tfa9890@36 {
+			compatible = "nxp,tfa9890";
+			reg = <0x36>;
+			reset_gpio= <&tlmm 16 0>;
+			status = "okay";
+		};
+	};
+
 	sound-9335 {
 		qcom,model = "msm8996-tasha-mtp-snd-card";
 		qcom,tdm-audio-intf;
@@ -714,31 +752,15 @@
 			"hifi amp", "LINEOUT2",
 			"AMIC2", "MIC BIAS2",
 			"MIC BIAS2", "Headset Mic",
-			"AMIC3", "MIC BIAS2",
-			"MIC BIAS2", "ANCRight Headset Mic",
-			"AMIC4", "MIC BIAS2",
-			"MIC BIAS2", "ANCLeft Headset Mic",
+			"AMIC4", "MIC BIAS1",
+			"MIC BIAS1", "Primary Mic",
 			"AMIC5", "MIC BIAS3",
-			"MIC BIAS3", "Handset Mic",
-			"AMIC6", "MIC BIAS4",
-			"MIC BIAS4", "Analog Mic6",
-			"DMIC0", "MIC BIAS1",
-			"MIC BIAS1", "Digital Mic0",
-			"DMIC1", "MIC BIAS1",
-			"MIC BIAS1", "Digital Mic1",
-			"DMIC2", "MIC BIAS3",
-			"MIC BIAS3", "Digital Mic2",
-			"DMIC3", "MIC BIAS3",
-			"MIC BIAS3", "Digital Mic3",
-			"DMIC4", "MIC BIAS4",
-			"MIC BIAS4", "Digital Mic4",
-			"DMIC5", "MIC BIAS4",
-			"MIC BIAS4", "Digital Mic5";
+			"MIC BIAS3", "Noise Mic";
 
-		asoc-codec = <&stub_codec>, <&hdmi_audio>;
-		asoc-codec-names = "msm-stub-codec.1", "msm-hdmi-audio-codec-rx";
+		asoc-codec = <&stub_codec>,<&test_tfa9890>;
+		asoc-codec-names = "msm-stub-codec.1", "tfa98xx.3-0036";
 		asoc-cpu = <&dai_pri_auxpcm>, <&dai_sec_auxpcm>,
-				<&dai_hdmi>, <&dai_mi2s>,
+				<&dai_hdmi>, <&dai_tert_mi2s>, <&dai_quat_mi2s>,
 				<&sb_0_rx>, <&sb_0_tx>,
 				<&sb_1_rx>, <&sb_1_tx>,
 				<&sb_2_rx>, <&sb_2_tx>,
@@ -768,7 +790,7 @@
 				<&dai_quat_tdm_tx_0>, <&dai_quat_tdm_tx_1>,
 				<&dai_quat_tdm_tx_2>, <&dai_quat_tdm_tx_3>;
 		asoc-cpu-names = "msm-dai-q6-auxpcm.1", "msm-dai-q6-auxpcm.2",
-				"msm-dai-q6-hdmi.8", "msm-dai-q6-mi2s.2",
+				"msm-dai-q6-hdmi.8", "msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
 				"msm-dai-q6-dev.16384", "msm-dai-q6-dev.16385",
 				"msm-dai-q6-dev.16386", "msm-dai-q6-dev.16387",
 				"msm-dai-q6-dev.16388", "msm-dai-q6-dev.16389",
@@ -837,6 +859,31 @@
 
 	qcom,qbt1000 {
 		status = "disabled";
+	};
+
+	qcom,msm-dai-mi2s {
+		/delete-node/ qcom,msm-dai-q6-mi2s-tert;
+		/delete-node/ qcom,msm-dai-q6-mi2s-quat;
+		dai_tert_mi2s: qcom,msm-dai-q6-mi2s-tert {
+				compatible = "qcom,msm-dai-q6-mi2s";
+				qcom,msm-dai-q6-mi2s-dev-id = <2>;
+				qcom,msm-mi2s-rx-lines = <2>;
+				qcom,msm-mi2s-tx-lines = <1>;
+				pinctrl-names = "default", "sleep";
+		};
+
+		dai_quat_mi2s: qcom,msm-dai-q6-mi2s-quat {
+			compatible = "qcom,msm-dai-q6-mi2s";
+			qcom,msm-dai-q6-mi2s-dev-id = <3>;
+			qcom,msm-mi2s-rx-lines = <1>; /* SD0 (1 << 0) */
+			qcom,msm-mi2s-tx-lines = <2>; /* SD1 (1 << 1) */
+			qcom,msm-mi2s-slave = <0>;
+			qcom,msm-mi2s-ext-mclk = <0>;
+			pinctrl-names = "default", "sleep";
+
+			pinctrl-0 = <&quat_mi2s_active  &quat_mi2s_sd0_active &quat_mi2s_sd1_active >;
+			pinctrl-1 = <&quat_mi2s_sleep  &quat_mi2s_sd0_sleep &quat_mi2s_sd1_sleep >;
+		};
 	};
 };
 
@@ -1070,6 +1117,35 @@
 		pinctrl-0 = <&tk_active>;
 		pinctrl-1 = <&tk_suspend>;
 		oem,cover_reject;
+	};
+	nq@28 {
+		compatible = "nxp,pn544";
+		reg = <0x28>;
+		nxp,pn544-irq = <&tlmm 9 0x00>;
+		nxp,pn544-ven = <&tlmm 94 0x00>;
+		nxp,pn544-fw-dwnld = <&tlmm 12 0x00>;
+		nxp,pn544-ese-pwr = <&pm8994_gpios 07 0x00>;
+		nxp,pn544-clk-gpio = <&pm8994_gpios 10 0x00>;
+		interrupt-parent = <&tlmm>;
+		qcom,clk-src = "BBCLK2";
+		interrupts = <9 0>;
+		interrupt-names = "nfc_irq";
+		clocks = <&clock_gcc clk_bb_clk2_pin>;
+		clock-names = "ref_clk";
+		nfc_voltage_s4-supply = <&pm8994_s4>;
+	};
+};
+
+&spi_0 {
+	p61-nxp-nfc@1 {
+		compatible = "nxp,p61";
+		reg = <1>;
+		nxp,p61-irq = <&tlmm 34 0x00>;
+		nxp,p61-rst = <&tlmm 21 0x00>;
+		spi-max-frequency = <19200000>;
+		spi-cs-high;
+		interrupt-parent = <&tlmm>;
+		interrupts = <34 0>;
 	};
 };
 
