@@ -68,7 +68,7 @@
 /*
   NFC Init will call the ioctl to register the PID with the i2c driver
 */
-#define P544_SET_NFC_SERVICE_PID _IOW(PN544_MAGIC, 0x05, long)
+#define P544_SET_NFC_SERVICE_PID _IOW(PN544_MAGIC, 0x05, unsigned int)
 
 typedef enum p61_access_state{
     P61_STATE_INVALID = 0x0000,
