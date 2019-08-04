@@ -643,8 +643,10 @@ static void ptn5150_otg_work(struct work_struct *work)
 {
     struct ptn5150_info *info = container_of(work, struct ptn5150_info, otg_work);
     bool otg_present = !gpio_get_value(info->ID_gpio);
+    union power_supply_propval ret = {0, };
     dev_err(&info->i2c->dev,"%s : otg_present = (%d)\n",__func__,otg_present);
-    power_supply_set_usb_otg(info->usb_psy, otg_present ? 1 : 0);
+    ret.intval = otg_present ? 1 : 0;
+    power_supply_set_property(info->usb_psy, POWER_SUPPLY_PROP_USB_OTG, &ret);
 }
 
 static irqreturn_t ptn5150_otg_irq_thread(int irq, void *handle)
@@ -758,6 +760,8 @@ static struct ptn5150_info *ginfo;
 static int ptn5150_power_down_callback(
         struct notifier_block *nfb, unsigned long action, void *data)
 {
+    union power_supply_propval ret = {0, };
+
     if(ginfo == NULL){
         return NOTIFY_OK;
     }
@@ -771,7 +775,7 @@ static int ptn5150_power_down_callback(
         free_irq(ginfo->OTG_USB_ID_irq, ginfo);
         //set to UFP to get a chance to make sure get charging from other DRP typeC device
         ptn5150_write_reg(ginfo->i2c, REG_MOD, 0x00);//0x02,0x00  MOD_SNK
-        power_supply_set_usb_otg(ginfo->usb_psy, 0);
+	power_supply_set_property(ginfo->usb_psy, POWER_SUPPLY_PROP_USB_OTG, &ret);
         break;
     default:
         return NOTIFY_DONE;
@@ -920,16 +924,20 @@ static int ptn5150_remove(struct i2c_client *client)
     return 0;
 }
 
-
-static int  ptn5150_suspend(struct i2c_client *client, pm_message_t message)
+static int ptn5150_suspend(struct device *dev)
 {
 	return 0;
 }
 
-static int  ptn5150_resume(struct i2c_client *client)
+static int ptn5150_resume(struct device *dev)
 {
 	return 0;
 }
+
+static const struct dev_pm_ops ptn5150_pm_ops = {
+	.suspend = ptn5150_suspend,
+	.resume = ptn5150_resume,
+};
 
 static const struct of_device_id ptn5150_id[] = {
 		{.compatible = "ptn5150"},
@@ -947,11 +955,10 @@ static struct i2c_driver ptn5150_i2c_driver = {
 	.driver = {
 		.name = "ptn5150",
 		.of_match_table = of_match_ptr(ptn5150_id),
+		.pm = &ptn5150_pm_ops,
 	},
 	.probe    = ptn5150_probe,
 	.remove   = ptn5150_remove,
-	.suspend  = ptn5150_suspend,
-	.resume	  = ptn5150_resume,
 	.id_table = ptn5150_i2c_id,
 };
 

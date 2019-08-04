@@ -412,30 +412,13 @@ static void fusb301_check_orient(struct fusb301_info *info, u8 status)
 	u8 orient = ((status & STAT_ORIENT)>>STAT_ORIENT_SHIFT);
 	info->fusb_orient = orient;
 }
-static int set_property_on_smbchg(enum power_supply_property prop, int val)
-{
-	int rc;
-	union power_supply_propval ret = {0, };
-	struct power_supply *battery_psy;
 
-	battery_psy = power_supply_get_by_name("battery");
-	if (!battery_psy) {
-		pr_err("battery_psy not exist\n");
-		return -EINVAL;
-	}
-
-	ret.intval = val;
-	rc = battery_psy->set_property(battery_psy, prop, &ret);
-	if (rc)
-		pr_err("bms psy does not allow updating prop %d rc = %d\n",prop, rc);
-
-	return rc;
-}
 static irqreturn_t fusb301_irq_thread(int irq, void *handle)
 {
     u8 intr, rdata;
 	int bc_lvl;
 	struct fusb301_info *info = (struct fusb301_info *)handle;
+	union power_supply_propval ret = {0, };
 
     fusb301_read_reg(info->i2c, REG_INT, &intr);
 	dev_err(&info->i2c->dev,"%s: type<%d> int(0x%02x)\n", __func__,info->fusb_type, intr);
@@ -481,12 +464,14 @@ static irqreturn_t fusb301_irq_thread(int irq, void *handle)
 
 				info->otg_present = true;
 				dev_err(&info->i2c->dev,"%s : otg_present = (%d)\n",__func__,info->otg_present);
-				power_supply_set_usb_otg(info->usb_psy, info->otg_present ? 1 : 0);
+				ret.intval = info->otg_present ? 1 : 0;
+				power_supply_set_property(info->usb_psy, POWER_SUPPLY_PROP_USB_OTG, &ret);
 			}
 			#else
 			info->otg_present = true;
 			dev_err(&info->i2c->dev,"%s : otg_present = (%d)\n",__func__,info->otg_present);
-			power_supply_set_usb_otg(info->usb_psy, info->otg_present ? 1 : 0);
+			ret.intval = info->otg_present ? 1 : 0;
+			power_supply_set_property(info->usb_psy, POWER_SUPPLY_PROP_USB_OTG, &ret);
 			#endif
 			//TODO triger OTG isr,open 5V VBUS and change USB PHY to HOST
 		}
@@ -506,7 +491,8 @@ static irqreturn_t fusb301_irq_thread(int irq, void *handle)
 			if(info->otg_present == true){
 				info->otg_present = false;
 				dev_err(&info->i2c->dev,"%s : otg_present = (%d)\n",__func__,info->otg_present);
-				power_supply_set_usb_otg(info->usb_psy, info->otg_present ? 1 : 0);
+				ret.intval = info->otg_present ? 1 : 0;
+				power_supply_set_property(info->usb_psy, POWER_SUPPLY_PROP_USB_OTG, &ret);
 			}
 			fusb301_read_reg(info->i2c, REG_STAT, &rdata);
 			bc_lvl = (rdata & STAT_BC_LVL) >> STAT_BC_LVL_SHIFT;
@@ -531,9 +517,9 @@ static irqreturn_t fusb301_irq_thread(int irq, void *handle)
 		if(info->otg_present == true){
 			info->otg_present = false;
 			dev_err(&info->i2c->dev,"%s : otg_present = (%d)\n",__func__,info->otg_present);
-			power_supply_set_usb_otg(info->usb_psy, info->otg_present ? 1 : 0);
+			ret.intval = info->otg_present ? 1 : 0;
+			power_supply_set_property(info->usb_psy, POWER_SUPPLY_PROP_USB_OTG, &ret);
 		}
-		set_property_on_smbchg(POWER_SUPPLY_PROP_CHECK_USB_UNPLUG, true);
 	}
 	else if(intr & INT_BC_LVL)
 	{
@@ -603,8 +589,10 @@ static void fusb301_otg_work(struct work_struct *work)
 {
     struct fusb301_info *info = container_of(work, struct fusb301_info, otg_work);
     bool otg_present = !gpio_get_value(info->ID_gpio);
+    union power_supply_propval ret = {0, };
     dev_err(&info->i2c->dev,"%s : otg_present = (%d)\n",__func__,otg_present);
-    power_supply_set_usb_otg(info->usb_psy, otg_present ? 1 : 0);
+    ret.intval = otg_present ? 1 : 0;
+    power_supply_set_property(info->usb_psy, POWER_SUPPLY_PROP_USB_OTG, &ret);
 }
 
 static irqreturn_t fusb301_otg_irq_thread(int irq, void *handle)
@@ -722,6 +710,8 @@ static struct fusb301_info *ginfo;
 static int fusb301_power_down_callback(
 		struct notifier_block *nfb, unsigned long action, void *data)
 {
+	union power_supply_propval ret = {0, };
+
 	if(ginfo == NULL){
 		return NOTIFY_OK;
 	}
@@ -739,7 +729,7 @@ static int fusb301_power_down_callback(
 		*/
 		//set to UFP to get a chance to make sure get charging from other DRP typeC device
 		fusb301_write_reg(ginfo->i2c, REG_MOD, MOD_SNK); //0x02,0x04
-		power_supply_set_usb_otg(ginfo->usb_psy, 0);
+		power_supply_set_property(ginfo->usb_psy, POWER_SUPPLY_PROP_USB_OTG, &ret);
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -918,16 +908,20 @@ static int fusb301_remove(struct i2c_client *client)
     return 0;
 }
 
-
-static int  fusb301_suspend(struct i2c_client *client, pm_message_t message)
+static int  fusb301_suspend(struct device *dev)
 {
 	return 0;
 }
 
-static int  fusb301_resume(struct i2c_client *client)
+static int  fusb301_resume(struct device *dev)
 {
 	return 0;
 }
+
+static const struct dev_pm_ops fusb301_pm_ops = {
+	.suspend = fusb301_suspend,
+	.resume = fusb301_resume,
+};
 
 static const struct of_device_id fusb301_id[] = {
 		{.compatible = "fusb301"},
@@ -945,11 +939,10 @@ static struct i2c_driver fusb301_i2c_driver = {
 	.driver = {
 		.name = "fusb301",
 		.of_match_table = of_match_ptr(fusb301_id),
+		.pm = &fusb301_pm_ops,
 	},
 	.probe    = fusb301_probe,
 	.remove   = fusb301_remove,
-	.suspend  = fusb301_suspend,
-	.resume	  = fusb301_resume,
 	.id_table = fusb301_i2c_id,
 };
 
