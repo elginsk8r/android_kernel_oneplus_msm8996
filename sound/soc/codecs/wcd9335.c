@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -860,14 +860,35 @@ static const struct tasha_reg_mask_val tasha_high_impedance[] = {
 	{WCD9335_TEST_DEBUG_PIN_CTL_OE_2, 0x01, 0x01},
 };
 
-static const struct tasha_reg_mask_val tasha_reset_high_impedance[] = {
-	{WCD9335_TLMM_I2S_TX_SD0_PINCFG, 0x1F, 0x00},
-	{WCD9335_TLMM_I2S_TX_SD1_PINCFG, 0x1F, 0x00},
-	{WCD9335_TLMM_I2S_TX_SCK_PINCFG, 0x1F, 0x00},
-	{WCD9335_TLMM_I2S_TX_WS_PINCFG, 0x1F, 0x00},
-	{WCD9335_TEST_DEBUG_PIN_CTL_OE_1, 0xE0, 0x00},
-	{WCD9335_TEST_DEBUG_PIN_CTL_OE_2, 0x01, 0x00},
+/*zhiguang.su@MultiMedia.AudioDrv, 2015-10-26, Modify for headset uevent*/
+enum
+{
+	NO_DEVICE	= 0,
+	HS_WITH_MIC	= 1,
+	HS_WITHOUT_MIC = 2,
 };
+
+struct tasha_priv *priv_headset_type;
+
+static ssize_t wcd9xxx_print_name(struct switch_dev *sdev, char *buf)
+{
+	switch (switch_get_state(sdev))
+	{
+		case NO_DEVICE:
+			return sprintf(buf, "No Device\n");
+		case HS_WITH_MIC:
+            if(priv_headset_type->mbhc.mbhc_cfg->headset_type == 1) {
+		        return sprintf(buf, "American Headset\n");
+            } else {
+                return sprintf(buf, "Headset\n");
+            }
+
+		case HS_WITHOUT_MIC:
+			return sprintf(buf, "Handset\n");
+
+	}
+	return -EINVAL;
+}
 
 /**
  * tasha_set_spkr_gain_offset - offset the speaker path
@@ -972,25 +993,19 @@ static void tasha_cdc_sido_ccl_enable(struct tasha_priv *tasha, bool ccl_flag)
 	}
 }
 
-void tasha_set_reset_high_impedance_mode(struct snd_soc_codec *codec, bool set)
+static void tasha_set_high_impedance_mode(struct snd_soc_codec *codec)
 {
 	const struct tasha_reg_mask_val *regs;
 	int i, size;
 
-	dev_dbg(codec->dev, "%s: %s TX I2S in Hi-Z mode\n", __func__,
-					set ? "set" : "reset");
-	if (set) {
-		regs = tasha_high_impedance;
-		size = ARRAY_SIZE(tasha_high_impedance);
-	} else {
-		regs = tasha_reset_high_impedance;
-		size = ARRAY_SIZE(tasha_reset_high_impedance);
-	}
+	dev_dbg(codec->dev, "%s: setting TX I2S in Hi-Z mode\n", __func__);
+	regs = tasha_high_impedance;
+	size = ARRAY_SIZE(tasha_high_impedance);
+
 	for (i = 0; i < size; i++)
 		snd_soc_update_bits(codec, regs[i].reg,
 				    regs[i].mask, regs[i].val);
 }
-EXPORT_SYMBOL(tasha_set_reset_high_impedance_mode);
 
 static bool tasha_cdc_is_svs_enabled(struct tasha_priv *tasha)
 {
@@ -13927,6 +13942,15 @@ static int tasha_codec_probe(struct snd_soc_codec *codec)
 		goto err_hwdep;
 	}
 
+/*zhiguang.su@MultiMedia.AudioDrv, 2015-10-26, Modify for headset uevent*/
+		tasha->mbhc.wcd9xxx_sdev.name= "h2w";
+		tasha->mbhc.wcd9xxx_sdev.print_name = wcd9xxx_print_name;
+		ret = switch_dev_register(&tasha->mbhc.wcd9xxx_sdev);
+		if (ret)
+		{
+			goto err_switch_dev_register;
+		}
+
 	ptr = devm_kzalloc(codec->dev, (sizeof(tasha_rx_chs) +
 			   sizeof(tasha_tx_chs)), GFP_KERNEL);
 	if (!ptr) {
@@ -14018,10 +14042,14 @@ static int tasha_codec_probe(struct snd_soc_codec *codec)
 	mutex_unlock(&codec->mutex);
 	snd_soc_dapm_sync(dapm);
 
+	priv_headset_type = tasha;
+
 	return ret;
 
 err_pdata:
 	devm_kfree(codec->dev, ptr);
+	switch_dev_unregister(&tasha->mbhc.wcd9xxx_sdev);
+	err_switch_dev_register:
 err_hwdep:
 	devm_kfree(codec->dev, tasha->fw_data);
 err:
