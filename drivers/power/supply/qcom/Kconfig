@@ -48,6 +48,18 @@ config SMB1351_USB_CHARGER
 	 notification support. The driver controls SMB1351 via I2C and
 	 supports device-tree interface.
 
+config FG_BQ27541
+	tristate "TI bq27541 fg"
+	depends on I2C
+	help
+	  Say Y here to enable the TI Fuel Gauge driver.
+
+config ONEPLUS_FASTCHG
+	tristate "ONEPLUS FAST CHARGE"
+	depends on I2C
+	help
+	  Say Y here to enable the ONEPLUS FAST CHARGE driver.
+
 config MSM_BCL_CTL
 	bool "BCL Framework driver"
 	help
