@@ -138,7 +138,7 @@ static int set_property_on_smbcharger(enum power_supply_property prop,bool data)
 			return -EINVAL;
 		}
 	}
-	if (psy->set_property(psy, prop,&value))
+	if (power_supply_set_property(psy, prop,&value))
 		return -EINVAL;
 
 	return 0;
