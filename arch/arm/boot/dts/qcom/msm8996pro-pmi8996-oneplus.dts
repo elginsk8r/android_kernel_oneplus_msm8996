@@ -15,39 +15,11 @@
 
 #include "msm8996pro.dtsi"
 #include "msm-pmi8996.dtsi"
-#include "15801/msm8996-mtp.dtsi"
-#include "15801/msm8996-camera-sensor-mtp-15811.dtsi"
+#include "msm8996-mtp.dtsi"
+#include "oneplus/msm8996pro-oneplus.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. MSM 8996pro + PMI8996 MTP";
 	compatible = "qcom,msm8996-mtp", "qcom,msm8996", "qcom,mtp";
 	qcom,board-id = <8 0 15811 26>, <8 0 15811 27>, <8 0 15811 28>;
-};
-
-&i2c_6 {
-	bq27541-battery@55 {
-		oem,support-4p4v-battery;
-		op,low-bat-voltage-uv=<3250000>;
-		op,low-bat-capacity=<20>;
-	};
-};
-
-&pm8994_l27 {
-	qcom,init-voltage = <1030000>;
-};
-
-&msm_gpu {
-	cm,firmware-name = "a530_zap-pro";
-};
-
-&pil_gpu {
-	qcom,firmware-name = "a530_zap-pro";
-};
-
-&soc {
-	qcom,bcl {
-		qcom,ibat-monitor {
-			qcom,mitigation-freq-khz = <1132800>;
-		};
-	};
 };
